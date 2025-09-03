@@ -1,0 +1,175 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+html,
+body {
+  @apply bg-white dark:bg-gray-950;
+
+  @media (prefers-color-scheme: dark) {
+    color-scheme: dark;
+  }
+}
+
+/* Spec slide-in and line sweep animations */
+:root {
+  --spec-anim-duration: 280ms;
+  --spec-anim-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --line-anim-duration: 320ms;
+  --line-anim-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Keyframes */
+@keyframes spec-slide-in {
+  from {
+    transform: translateX(-12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes line-sweep {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* Utilities to apply animations */
+.spec-anim {
+  animation: spec-slide-in var(--spec-anim-duration) var(--spec-anim-ease) both;
+  will-change: transform, opacity;
+}
+
+.spec-anim-soft {
+  /* slightly faster variant if needed */
+  animation: spec-slide-in 220ms var(--spec-anim-ease) both;
+  will-change: transform, opacity;
+}
+
+.line-sweep {
+  transform-origin: left center;
+  animation: line-sweep var(--line-anim-duration) var(--line-anim-ease) both;
+  will-change: transform;
+}
+
+/* Helpful transitions for specs/lines when not using keyframes */
+.transition-spec {
+  transition:
+    transform 260ms var(--spec-anim-ease),
+    opacity 240ms var(--spec-anim-ease);
+}
+
+.line-transition {
+  transition:
+    width 280ms var(--line-anim-ease),
+    background-color 200ms ease,
+    opacity 200ms ease;
+}
+
+/* Optional delays for staggered effects */
+.anim-delay-100 {
+  animation-delay: 100ms;
+}
+.anim-delay-200 {
+  animation-delay: 200ms;
+}
+
+/* Reduced motion: respect user preferences */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --spec-anim-duration: 1ms;
+    --line-anim-duration: 1ms;
+  }
+  .spec-anim,
+  .spec-anim-soft,
+  .line-sweep {
+    animation: none !important;
+  }
+  .transition-spec,
+  .line-transition {
+    transition-duration: 1ms !important;
+  }
+}
+
+/* Position transition utilities for horizontal movement */
+.spec-shift {
+  transform: translateX(var(--spec-shift-x, 0px));
+  transition: transform 320ms
+    var(--line-anim-ease, cubic-bezier(0.22, 0.61, 0.36, 1));
+  will-change: transform;
+}
+
+/* Faster snap option if needed */
+.spec-shift.snap {
+  transition: transform 160ms ease-out;
+}
+
+/* Base horizontal step; tuned responsively below */
+:root {
+  --spec-shift-step: 7.5rem;
+}
+
+/* Rightward positions (e.g., match 5 tabs: 0..4) */
+.spec-shift.pos-0 {
+  --spec-shift-x: calc(0 * var(--spec-shift-step));
+}
+.spec-shift.pos-1 {
+  --spec-shift-x: calc(1 * var(--spec-shift-step));
+}
+.spec-shift.pos-2 {
+  --spec-shift-x: calc(2 * var(--spec-shift-step));
+}
+.spec-shift.pos-3 {
+  --spec-shift-x: calc(3 * var(--spec-shift-step));
+}
+.spec-shift.pos-4 {
+  --spec-shift-x: calc(4 * var(--spec-shift-step));
+}
+
+/* Mirror leftward positions if you prefer shifting left */
+.spec-shift.mirror.pos-1 {
+  --spec-shift-x: calc(-1 * var(--spec-shift-step));
+}
+.spec-shift.mirror.pos-2 {
+  --spec-shift-x: calc(-2 * var(--spec-shift-step));
+}
+.spec-shift.mirror.pos-3 {
+  --spec-shift-x: calc(-3 * var(--spec-shift-step));
+}
+.spec-shift.mirror.pos-4 {
+  --spec-shift-x: calc(-4 * var(--spec-shift-step));
+}
+
+/* Responsive tuning for the step size */
+@media (min-width: 640px) {
+  :root {
+    --spec-shift-step: 8.5rem;
+  }
+}
+@media (min-width: 768px) {
+  :root {
+    --spec-shift-step: 9.5rem;
+  }
+}
+@media (min-width: 1024px) {
+  :root {
+    --spec-shift-step: 10.5rem;
+  }
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .spec-shift {
+    transition-duration: 1ms !important;
+  }
+}
