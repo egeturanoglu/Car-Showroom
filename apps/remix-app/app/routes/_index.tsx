@@ -40,6 +40,7 @@ export default function Index() {
   const topZoomRef = useRef<number[]>([]);
   const topViewRef = useRef<{ y: number; z: number }>({ y: 0, z: 0 });
   const topLookYRef = useRef<number>(0);
+  const switchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewsRef = useRef<
     { name: string; pos: THREE.Vector3; look: THREE.Vector3 }[]
   >([]);
@@ -108,6 +109,10 @@ export default function Index() {
 
     const cleanup = () => {
       cancelAnimationFrame(animationId);
+      if (switchTimerRef.current) {
+        clearTimeout(switchTimerRef.current);
+        switchTimerRef.current = null;
+      }
       try {
         window.removeEventListener("resize", handleResize);
       } catch {}
@@ -607,7 +612,17 @@ export default function Index() {
                 return (
                   <button
                     key={m.path}
-                    onClick={() => setModelIndex(i)}
+                    onClick={() => {
+                      setSelectedSpecIndex(0);
+                      goToIndex(0);
+                      if (switchTimerRef.current) {
+                        clearTimeout(switchTimerRef.current);
+                      }
+                      switchTimerRef.current = setTimeout(() => {
+                        setModelIndex(i);
+                        switchTimerRef.current = null;
+                      }, 650);
+                    }}
                     aria-pressed={active}
                     style={{
                       background: "transparent",
