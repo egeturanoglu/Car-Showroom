@@ -17,8 +17,11 @@ export function meta() {
   ];
 }
 
-// Path to your model in the public folder
-const MODEL_PATH = "/models/model.glb"; // Change this to your model filename
+// Path to your models in the public folder
+const MODELS = [
+  { name: "Porsche 911", path: "/models/model.glb" },
+  { name: "Nissan Skyline R34", path: "/models/model1.glb" },
+] as const;
 
 export default function Index() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -28,8 +31,15 @@ export default function Index() {
   const [error, setError] = useState<string | null>(null);
   const [viewIndex, setViewIndex] = useState(0);
   const [selectedSpecIndex, setSelectedSpecIndex] = useState(0);
+  const [modelIndex, setModelIndex] = useState(0);
+  const modelOffsetsRef = useRef<number[]>([]);
+  const modelInfoRef = useRef<{ radius: number; midY: number }[]>([]);
   const camTargetRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
   const lookTargetRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
+  const currentLookRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
+  const topZoomRef = useRef<number[]>([]);
+  const topViewRef = useRef<{ y: number; z: number }>({ y: 0, z: 0 });
+  const topLookYRef = useRef<number>(0);
   const viewsRef = useRef<
     { name: string; pos: THREE.Vector3; look: THREE.Vector3 }[]
   >([]);
@@ -38,9 +48,45 @@ export default function Index() {
     if (!views || views.length === 0) return;
     const next = ((i % views.length) + views.length) % views.length;
     setViewIndex(next);
-    const v = views[next];
-    camTargetRef.current.set(v.pos.x, v.pos.y, v.pos.z);
-    lookTargetRef.current.set(v.look.x, v.look.y, v.look.z);
+
+    const info = (modelInfoRef.current && modelInfoRef.current[modelIndex]) || {
+      radius: 2,
+      midY: 1,
+    };
+    const offX =
+      (modelOffsetsRef.current && modelOffsetsRef.current[modelIndex]) || 0;
+
+    const name = ["Top", "Front", "Right side", "Back", "Left side"][next];
+    const r = info.radius;
+    const midY = info.midY;
+    let pos = new THREE.Vector3();
+    switch (name) {
+      case "Top":
+        const zoom = topZoomRef.current[modelIndex] ?? 1;
+        pos.set(0, topViewRef.current.y * zoom, topViewRef.current.z * zoom);
+        break;
+      case "Front":
+        const frontZoom = topZoomRef.current[modelIndex] ?? 1;
+        pos.set(0, r * 0.5, r * 1.2 * frontZoom);
+        break;
+      case "Right side":
+        const rightZoom = topZoomRef.current[modelIndex] ?? 1;
+        pos.set(r * 1.2 * rightZoom, r * 0.5, 0);
+        break;
+      case "Back":
+        const backZoom = topZoomRef.current[modelIndex] ?? 1;
+        pos.set(0, r * 0.5, -r * 1.2 * backZoom);
+        break;
+      case "Left side":
+        const leftZoom = topZoomRef.current[modelIndex] ?? 1;
+        pos.set(-r * 1.2 * leftZoom, r * 0.5, 0);
+        break;
+    }
+    pos.x += offX;
+
+    camTargetRef.current.set(pos.x, pos.y, pos.z);
+    const lookY = name === "Top" ? topLookYRef.current : midY;
+    lookTargetRef.current.set(offX, lookY, 0);
   };
   const goNext = () => goToIndex(viewIndex + 1);
   const goPrev = () => goToIndex(viewIndex - 1);
@@ -53,7 +99,7 @@ export default function Index() {
     let renderer!: THREE.WebGLRenderer;
     let scene!: THREE.Scene;
     let camera!: THREE.PerspectiveCamera;
-    let model: THREE.Object3D | null = null;
+    let models: THREE.Object3D[] = [];
     let ambientLight!: THREE.AmbientLight;
     let directionalLight!: THREE.DirectionalLight;
     let fillLight!: THREE.DirectionalLight;
@@ -66,18 +112,22 @@ export default function Index() {
       } catch {}
       try {
         // Cleanup model
-        if (model) {
-          scene.remove(model);
-          model.traverse((child) => {
-            if (child instanceof THREE.Mesh) {
-              child.geometry?.dispose();
-              if (Array.isArray(child.material)) {
-                child.material.forEach((mat) => mat?.dispose());
-              } else {
-                child.material?.dispose();
-              }
-            }
-          });
+        if (models && models.length) {
+          for (const obj of models) {
+            try {
+              scene.remove(obj);
+              obj.traverse((child: THREE.Object3D) => {
+                if (child instanceof THREE.Mesh) {
+                  child.geometry?.dispose();
+                  const mats = Array.isArray(child.material)
+                    ? child.material
+                    : [child.material];
+                  mats.forEach((mat: any) => mat?.dispose?.());
+                }
+              });
+            } catch {}
+          }
+          models = [];
         }
         renderer?.dispose?.();
         if (
@@ -109,8 +159,9 @@ export default function Index() {
 
       const { clientWidth: width, clientHeight: height } = containerRef.current;
 
+      const FOV_DEG = 70;
       camera = new THREE.PerspectiveCamera(
-        70,
+        FOV_DEG,
         width / Math.max(height, 1),
         0.1,
         100,
@@ -162,7 +213,10 @@ export default function Index() {
         "three/examples/jsm/environments/RoomEnvironment.js"
       );
       const pmrem = new THREE.PMREMGenerator(renderer);
-      const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+      const envTex = pmrem.fromScene(
+        new RoomEnvironment() as unknown as THREE.Scene,
+        0.04,
+      ).texture;
       scene.environment = envTex;
 
       containerRef.current.appendChild(renderer.domElement);
@@ -176,94 +230,55 @@ export default function Index() {
       canvas.style.height = "100%";
       canvas.style.display = "block";
 
-      // Load the model
+      // Load both models and place them in the same scene
       const loader = new GLTFLoader();
+      const loadOne = (path: string) =>
+        new Promise<THREE.Object3D>((resolve, reject) => {
+          loader.load(
+            path,
+            (gltf) => resolve(gltf.scene),
+            undefined,
+            (err) => reject(err),
+          );
+        });
 
-      // Try to load model, fall back to cube if not found
-      loader.load(
-        MODEL_PATH,
-        (gltf) => {
-          if (!mounted) return;
+      try {
+        const scenes = await Promise.all(MODELS.map((m) => loadOne(m.path)));
+        const offsets: number[] = [];
+        const infos: { radius: number; midY: number }[] = [];
 
-          model = gltf.scene;
+        // Prepare and place models
+        for (let i = 0; i < scenes.length; i++) {
+          const obj = scenes[i];
 
-          // Center and scale the model
-          const box = new THREE.Box3().setFromObject(model);
+          // Center and scale each model
+          const box = new THREE.Box3().setFromObject(obj);
           const size = box.getSize(new THREE.Vector3());
           const center = box.getCenter(new THREE.Vector3());
 
-          // Scale model to a consistent display size
           const maxDim = Math.max(size.x, size.y, size.z);
           const scale = 3 / maxDim;
-          model.scale.setScalar(scale);
+          obj.scale.setScalar(scale);
 
-          // Recompute bounds after scaling
-          const scaledBox = new THREE.Box3().setFromObject(model);
+          const scaledBox = new THREE.Box3().setFromObject(obj);
           const scaledSize = scaledBox.getSize(new THREE.Vector3());
           const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
 
-          // Center horizontally and place the model on the ground at y=0
-          model.position.x -= scaledCenter.x;
-          model.position.z -= scaledCenter.z;
-          model.position.y -= scaledBox.min.y;
+          // Center horizontally and place on ground y=0
+          obj.position.x -= scaledCenter.x;
+          obj.position.z -= scaledCenter.z;
+          obj.position.y -= scaledBox.min.y;
 
-          // Frame camera to the right side of the car and look at its mid-height
           const radius =
             Math.max(scaledSize.x, scaledSize.y, scaledSize.z) * 0.5;
           const midY = scaledSize.y * 0.45;
-          viewsRef.current = [
-            {
-              name: "left",
-              pos: new THREE.Vector3(-radius * 1.2, radius * 0.5, 0),
-              look: new THREE.Vector3(0, midY, 0),
-            },
-            {
-              name: "back",
-              pos: new THREE.Vector3(0, radius * 0.5, -radius * 1.2),
-              look: new THREE.Vector3(0, midY, 0),
-            },
-            {
-              name: "right",
-              pos: new THREE.Vector3(radius * 1.2, radius * 0.5, 0),
-              look: new THREE.Vector3(0, midY, 0),
-            },
-            {
-              name: "front",
-              pos: new THREE.Vector3(0, radius * 0.5, radius * 1.2),
-              look: new THREE.Vector3(0, midY, 0),
-            },
-            {
-              name: "top",
-              pos: new THREE.Vector3(0, radius * 2.0, 0.1),
-              look: new THREE.Vector3(0, midY, 0),
-            },
-          ];
-          camTargetRef.current.set(
-            viewsRef.current[0].pos.x,
-            viewsRef.current[0].pos.y,
-            viewsRef.current[0].pos.z,
-          );
-          lookTargetRef.current.set(0, midY, 0);
-          camera.position.set(
-            viewsRef.current[0].pos.x,
-            viewsRef.current[0].pos.y,
-            viewsRef.current[0].pos.z,
-          );
-          camera.lookAt(0, midY, 0);
+          infos.push({ radius, midY });
 
-          // Enable shadows
-          model.traverse((child) => {
+          // Enable shadows and tweak materials
+          obj.traverse((child) => {
             if (child instanceof THREE.Mesh) {
               child.castShadow = true;
               child.receiveShadow = true;
-            }
-          });
-
-          scene.add(model);
-
-          // Boost environment reflections on PBR materials to avoid dark look
-          model.traverse((child) => {
-            if (child instanceof THREE.Mesh) {
               const mats = Array.isArray(child.material)
                 ? child.material
                 : [child.material];
@@ -273,23 +288,130 @@ export default function Index() {
               });
             }
           });
+        }
 
-          setStatus("ready");
-        },
-        (progress) => {
-          // Optional: track loading progress
-        },
-        (error) => {
-          console.warn("Model not found, using fallback cube:", error);
+        // Compute horizontal offsets to lay them side-by-side
+        if (scenes.length === 1) {
+          offsets.push(0);
+        } else if (scenes.length === 2) {
+          const r0 = infos[0].radius;
+          const r1 = infos[1].radius;
+          // Place second model just outside current camera frustum on the +X side
+          const camY = camera.position.y;
+          const d = Math.max(camY, 0.001);
+          const halfHeight = Math.tan((FOV_DEG * Math.PI) / 360) * d;
+          const halfWidth = halfHeight * camera.aspect;
+          const extra = Math.max(r0, r1) * 1.2;
+          const hideOffset = halfWidth + r0 + r1 + extra;
+          offsets.push(0);
+          offsets.push(hideOffset);
+        } else {
+          let cursor = 0;
+          const margin = Math.max(...infos.map((i) => i.radius)) * 1.2;
+          for (let i = 0; i < scenes.length; i++) {
+            offsets.push(cursor);
+            cursor += infos[i].radius * 2 + margin;
+          }
+        }
 
-          // Fallback: create a cube if model fails to load
-          const geometry = new THREE.BoxGeometry(1, 1, 1);
-          const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
-          model = new THREE.Mesh(geometry, material);
-          scene.add(model);
-          setStatus("ready");
-        },
-      );
+        // Apply offsets and add to scene
+        for (let i = 0; i < scenes.length; i++) {
+          scenes[i].position.x += offsets[i];
+          scene.add(scenes[i]);
+        }
+
+        // Persist refs
+        modelOffsetsRef.current = offsets;
+        modelInfoRef.current = infos;
+        topZoomRef.current = infos.map((_, i) => (i === 1 ? 1.5 : 1));
+
+        // Prepare view ordering (names only; positions computed per model)
+        viewsRef.current = [
+          {
+            name: "top",
+            pos: new THREE.Vector3(0, 0, 0),
+            look: new THREE.Vector3(0, 0, 0),
+          },
+          {
+            name: "front",
+            pos: new THREE.Vector3(0, 0, 0),
+            look: new THREE.Vector3(0, 0, 0),
+          },
+          {
+            name: "right",
+            pos: new THREE.Vector3(0, 0, 0),
+            look: new THREE.Vector3(0, 0, 0),
+          },
+          {
+            name: "back",
+            pos: new THREE.Vector3(0, 0, 0),
+            look: new THREE.Vector3(0, 0, 0),
+          },
+          {
+            name: "left",
+            pos: new THREE.Vector3(0, 0, 0),
+            look: new THREE.Vector3(0, 0, 0),
+          },
+        ];
+
+        // Set initial camera target to current model top view
+        const offX = offsets[modelIndex] ?? 0;
+        const r0 = infos[modelIndex]?.radius ?? 2;
+        const mid0 = infos[modelIndex]?.midY ?? 1;
+        camTargetRef.current.set(offX + 0, r0 * 2.0, 0.1);
+        lookTargetRef.current.set(offX, mid0, 0);
+        camera.position.set(offX + 0, r0 * 2.0, 0.1);
+        camera.lookAt(offX, mid0, 0);
+        currentLookRef.current.set(offX, mid0, 0);
+        topViewRef.current = { y: camera.position.y, z: camera.position.z };
+        topLookYRef.current = mid0;
+
+        setStatus("ready");
+      } catch (error) {
+        console.warn("Model(s) failed to load, using fallback cube:", error);
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+        const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+        const cube = new THREE.Mesh(geometry, material);
+        scene.add(cube);
+        modelOffsetsRef.current = [0];
+        modelInfoRef.current = [{ radius: 0.5, midY: 0.45 }];
+        topZoomRef.current = [1];
+        viewsRef.current = [
+          {
+            name: "top",
+            pos: new THREE.Vector3(0, 0, 0),
+            look: new THREE.Vector3(0, 0, 0),
+          },
+          {
+            name: "front",
+            pos: new THREE.Vector3(0, 0, 0),
+            look: new THREE.Vector3(0, 0, 0),
+          },
+          {
+            name: "right",
+            pos: new THREE.Vector3(0, 0, 0),
+            look: new THREE.Vector3(0, 0, 0),
+          },
+          {
+            name: "back",
+            pos: new THREE.Vector3(0, 0, 0),
+            look: new THREE.Vector3(0, 0, 0),
+          },
+          {
+            name: "left",
+            pos: new THREE.Vector3(0, 0, 0),
+            look: new THREE.Vector3(0, 0, 0),
+          },
+        ];
+        camTargetRef.current.set(0, 0.5 * 2.0, 0.1);
+        lookTargetRef.current.set(0, 0.45, 0);
+        camera.position.set(0, 0.5 * 2.0, 0.1);
+        camera.lookAt(0, 0.45, 0);
+        currentLookRef.current.set(0, 0.45, 0);
+        topViewRef.current = { y: camera.position.y, z: camera.position.z };
+        topLookYRef.current = 0.45;
+        setStatus("ready");
+      }
 
       const animate = () => {
         if (!mounted) return;
@@ -302,12 +424,18 @@ export default function Index() {
         const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
         const tp = camTargetRef.current;
         camera.position.set(
-          lerp(camera.position.x, tp.x, 0.08),
-          lerp(camera.position.y, tp.y, 0.08),
-          lerp(camera.position.z, tp.z, 0.08),
+          lerp(camera.position.x, tp.x, 0.12),
+          lerp(camera.position.y, tp.y, 0.12),
+          lerp(camera.position.z, tp.z, 0.12),
         );
         const lt = lookTargetRef.current;
-        camera.lookAt(lt.x, lt.y, lt.z);
+        const cur = currentLookRef.current;
+        cur.set(
+          lerp(cur.x, lt.x, 0.12),
+          lerp(cur.y, lt.y, 0.12),
+          lerp(cur.z, lt.z, 0.12),
+        );
+        camera.lookAt(cur.x, cur.y, cur.z);
 
         renderer.render(scene, camera);
       };
@@ -328,6 +456,13 @@ export default function Index() {
       cleanup();
     };
   }, []);
+
+  useEffect(() => {
+    const offX = modelOffsetsRef.current[modelIndex] ?? 0;
+
+    // Recompute position for current view and model to apply zoom
+    goToIndex(viewIndex);
+  }, [modelIndex, viewIndex]);
 
   return (
     <main
@@ -397,10 +532,56 @@ export default function Index() {
               Failed to load: {error}
             </div>
           )}
+          {/* Model pagination overlay (moved from bottom) */}
+          <div
+            style={{
+              position: "absolute",
+              top: "8px",
+              left: 0,
+              right: 0,
+              display: "flex",
+              justifyContent: "center",
+              pointerEvents: "auto",
+              zIndex: 10,
+              padding: "0 8px",
+            }}
+          >
+            <div
+              style={{ display: "flex", gap: "12px", pointerEvents: "auto" }}
+            >
+              {MODELS.map((m, i) => {
+                const active = modelIndex === i;
+                return (
+                  <button
+                    key={m.path}
+                    onClick={() => setModelIndex(i)}
+                    aria-pressed={active}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      padding: 0,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: "4px",
+                        width: active ? "96px" : "36px",
+                        backgroundColor: active ? "#111827" : "#9ca3af",
+                        borderRadius: "9999px",
+                        opacity: active ? 1 : 0.6,
+                        transition: "all 220ms ease",
+                      }}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </section>
 
         <section
-          aria-label="Porsche 911 Specs"
+          aria-label={MODELS[modelIndex].name + " Specs"}
           style={{
             maxWidth: "900px",
             width: "min(90vw, 900px)",
@@ -411,7 +592,7 @@ export default function Index() {
         >
           <div style={{ display: "flex", alignItems: "baseline", gap: "12px" }}>
             <h2 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>
-              Porsche 911
+              {MODELS[modelIndex].name}
             </h2>
             <span style={{ color: "#6b7280" }}>
               Iconic rear‑engine sports car
@@ -527,7 +708,7 @@ export default function Index() {
               }}
               onClick={() => goToIndex(i)}
               aria-label={
-                ["Left side", "Back", "Right side", "Front", "Top"][i]
+                ["Top", "Front", "Right side", "Back", "Left side"][i]
               }
               style={{
                 background: "transparent",
@@ -551,6 +732,8 @@ export default function Index() {
           );
         })}
       </nav>
+
+      {/* Model pagination moved to top overlay */}
     </main>
   );
 }
