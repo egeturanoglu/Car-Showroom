@@ -100,6 +100,7 @@ export default function Index() {
     let scene!: THREE.Scene;
     let camera!: THREE.PerspectiveCamera;
     let models: THREE.Object3D[] = [];
+    let separatorPlanes: THREE.Object3D[] = [];
     let ambientLight!: THREE.AmbientLight;
     let directionalLight!: THREE.DirectionalLight;
     let fillLight!: THREE.DirectionalLight;
@@ -128,6 +129,24 @@ export default function Index() {
             } catch {}
           }
           models = [];
+        }
+        // Cleanup separator planes
+        if (separatorPlanes && separatorPlanes.length) {
+          for (const plane of separatorPlanes) {
+            try {
+              scene.remove(plane);
+              plane.traverse((child: THREE.Object3D) => {
+                if (child instanceof THREE.Mesh) {
+                  child.geometry?.dispose();
+                  const mats = Array.isArray(child.material)
+                    ? child.material
+                    : [child.material];
+                  mats.forEach((mat: any) => mat?.dispose?.());
+                }
+              });
+            } catch {}
+          }
+          separatorPlanes = [];
         }
         renderer?.dispose?.();
         if (
@@ -320,6 +339,35 @@ export default function Index() {
           scene.add(scenes[i]);
         }
 
+        // Create separator planes between models
+        if (scenes.length > 1) {
+          const bgColor = new THREE.Color(0xfaf3e0); // Same as main background
+          for (let i = 0; i < scenes.length - 1; i++) {
+            const currentOffset = offsets[i];
+            const nextOffset = offsets[i + 1];
+            const midPoint = (currentOffset + nextOffset) / 2;
+
+            // Create a tall vertical plane
+            const planeGeometry = new THREE.PlaneGeometry(100, 20); // Wide enough to block along Z
+            const planeMaterial = new THREE.MeshBasicMaterial({
+              color: bgColor,
+              side: THREE.DoubleSide,
+              transparent: false,
+            });
+            (planeMaterial as any).toneMapped = false;
+            const separatorPlane = new THREE.Mesh(planeGeometry, planeMaterial);
+
+            // Position the plane at the midpoint between models
+            separatorPlane.position.set(midPoint, 5, 0); // Center vertically at y=5
+            separatorPlane.rotation.y = Math.PI / 2; // Face along X axis (wall perpendicular to X)
+            separatorPlane.castShadow = false;
+            separatorPlane.receiveShadow = false;
+
+            scene.add(separatorPlane);
+            separatorPlanes.push(separatorPlane);
+          }
+        }
+
         // Persist refs
         modelOffsetsRef.current = offsets;
         modelInfoRef.current = infos;
@@ -423,17 +471,22 @@ export default function Index() {
         // Smoothly move camera toward target view
         const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
         const tp = camTargetRef.current;
+
+        // Use different speeds: slow for X (model sliding), fast for Y/Z (view changes)
+        const slideSpeed = 0.12; // Keep slow for sliding between models
+        const viewSpeed = 0.06; // Slower for changing views within same model
+
         camera.position.set(
-          lerp(camera.position.x, tp.x, 0.12),
-          lerp(camera.position.y, tp.y, 0.12),
-          lerp(camera.position.z, tp.z, 0.12),
+          lerp(camera.position.x, tp.x, slideSpeed),
+          lerp(camera.position.y, tp.y, viewSpeed),
+          lerp(camera.position.z, tp.z, viewSpeed),
         );
         const lt = lookTargetRef.current;
         const cur = currentLookRef.current;
         cur.set(
-          lerp(cur.x, lt.x, 0.12),
-          lerp(cur.y, lt.y, 0.12),
-          lerp(cur.z, lt.z, 0.12),
+          lerp(cur.x, lt.x, slideSpeed),
+          lerp(cur.y, lt.y, viewSpeed),
+          lerp(cur.z, lt.z, viewSpeed),
         );
         camera.lookAt(cur.x, cur.y, cur.z);
 
