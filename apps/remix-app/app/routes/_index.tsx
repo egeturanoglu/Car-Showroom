@@ -21,6 +21,7 @@ export function meta() {
 const MODELS = [
   { name: "Porsche 911", path: "/models/model.glb" },
   { name: "Nissan Skyline R34", path: "/models/model1.glb" },
+  { name: "Honda NSX (1990)", path: "/models/modal2.glb" },
 ] as const;
 
 export default function Index() {
@@ -101,7 +102,6 @@ export default function Index() {
     let scene!: THREE.Scene;
     let camera!: THREE.PerspectiveCamera;
     let models: THREE.Object3D[] = [];
-    let separatorPlanes: THREE.Object3D[] = [];
     let ambientLight!: THREE.AmbientLight;
     let directionalLight!: THREE.DirectionalLight;
     let fillLight!: THREE.DirectionalLight;
@@ -135,24 +135,7 @@ export default function Index() {
           }
           models = [];
         }
-        // Cleanup separator planes
-        if (separatorPlanes && separatorPlanes.length) {
-          for (const plane of separatorPlanes) {
-            try {
-              scene.remove(plane);
-              plane.traverse((child: THREE.Object3D) => {
-                if (child instanceof THREE.Mesh) {
-                  child.geometry?.dispose();
-                  const mats = Array.isArray(child.material)
-                    ? child.material
-                    : [child.material];
-                  mats.forEach((mat: any) => mat?.dispose?.());
-                }
-              });
-            } catch {}
-          }
-          separatorPlanes = [];
-        }
+
         renderer?.dispose?.();
         if (
           renderer?.domElement &&
@@ -344,39 +327,12 @@ export default function Index() {
           scene.add(scenes[i]);
         }
 
-        // Create separator planes between models
-        if (scenes.length > 1) {
-          const bgColor = new THREE.Color(0xfaf3e0); // Same as main background
-          for (let i = 0; i < scenes.length - 1; i++) {
-            const currentOffset = offsets[i];
-            const nextOffset = offsets[i + 1];
-            const midPoint = (currentOffset + nextOffset) / 2;
-
-            // Create a tall vertical plane
-            const planeGeometry = new THREE.PlaneGeometry(100, 20); // Wide enough to block along Z
-            const planeMaterial = new THREE.MeshBasicMaterial({
-              color: bgColor,
-              side: THREE.DoubleSide,
-              transparent: false,
-            });
-            (planeMaterial as any).toneMapped = false;
-            const separatorPlane = new THREE.Mesh(planeGeometry, planeMaterial);
-
-            // Position the plane at the midpoint between models
-            separatorPlane.position.set(midPoint, 5, 0); // Center vertically at y=5
-            separatorPlane.rotation.y = Math.PI / 2; // Face along X axis (wall perpendicular to X)
-            separatorPlane.castShadow = false;
-            separatorPlane.receiveShadow = false;
-
-            scene.add(separatorPlane);
-            separatorPlanes.push(separatorPlane);
-          }
-        }
-
         // Persist refs
         modelOffsetsRef.current = offsets;
         modelInfoRef.current = infos;
-        topZoomRef.current = infos.map((_, i) => (i === 1 ? 1.5 : 1));
+        topZoomRef.current = infos.map((_, i) =>
+          i === 1 || i === 2 ? 1.5 : 1,
+        );
 
         // Prepare view ordering (names only; positions computed per model)
         viewsRef.current = [
