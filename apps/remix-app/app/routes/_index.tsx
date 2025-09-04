@@ -479,50 +479,16 @@ export default function Index() {
   }, [modelIndex, viewIndex]);
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        gap: "1rem",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "1rem",
-        backgroundColor: "#faf3e0",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "0.75rem",
-        }}
-      >
+    <main className="min-h-screen flex flex-col gap-4 items-center justify-center p-4 bg-amber-50">
+      <div className="flex flex-col items-center gap-3">
         {/* 3D Scene Container */}
         <section
           ref={containerRef}
           aria-label="Three.js Canvas Container"
-          style={{
-            width: "min(80vw, 800px)",
-            height: "min(65vh, 520px)",
-            overflow: "hidden",
-            position: "relative",
-          }}
+          className="w-[min(80vw,800px)] h-[min(65vh,520px)] overflow-hidden relative"
         >
           {(status === "idle" || status === "loading") && (
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                display: "grid",
-                placeItems: "center",
-                color: "#6b7280",
-                fontSize: "0.95rem",
-                backdropFilter: "blur(0.5px)",
-                pointerEvents: "auto",
-              }}
-            >
+            <div className="absolute inset-0 grid place-items-center text-gray-500 text-[0.95rem] backdrop-blur-[0.5px] pointer-events-auto">
               Loading model...
             </div>
           )}
@@ -530,39 +496,14 @@ export default function Index() {
           {status === "error" && (
             <div
               role="alert"
-              style={{
-                position: "absolute",
-                inset: 0,
-                display: "grid",
-                placeItems: "center",
-                color: "#b91c1c",
-                fontSize: "0.95rem",
-                padding: "1rem",
-                textAlign: "center",
-                background: "rgba(255,255,255,0.75)",
-                pointerEvents: "auto",
-              }}
+              className="absolute inset-0 grid place-items-center text-red-700 text-[0.95rem] p-4 text-center backdrop-blur-[0.5px] pointer-events-auto"
             >
               Failed to load: {error}
             </div>
           )}
           {/* Model pagination overlay (moved from bottom) */}
-          <div
-            style={{
-              position: "absolute",
-              top: "8px",
-              left: 0,
-              right: 0,
-              display: "flex",
-              justifyContent: "center",
-              pointerEvents: "auto",
-              zIndex: 10,
-              padding: "0 8px",
-            }}
-          >
-            <div
-              style={{ display: "flex", gap: "12px", pointerEvents: "auto" }}
-            >
+          <div className="absolute top-2 left-0 right-0 flex justify-center pointer-events-auto z-10 px-2">
+            <div className="flex gap-3 pointer-events-auto">
               {MODELS.map((m, i) => {
                 const active = modelIndex === i;
                 return (
@@ -580,22 +521,14 @@ export default function Index() {
                       }, 650);
                     }}
                     aria-pressed={active}
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      padding: 0,
-                      cursor: "pointer",
-                    }}
+                    className="bg-transparent border-none cursor-pointer py-2 px-1"
                   >
                     <div
-                      style={{
-                        height: "4px",
-                        width: active ? "96px" : "36px",
-                        backgroundColor: active ? "#111827" : "#9ca3af",
-                        borderRadius: "9999px",
-                        opacity: active ? 1 : 0.6,
-                        transition: "all 220ms ease",
-                      }}
+                      className={`h-1 rounded-full transition-all duration-200 ease-in-out ${
+                        active
+                          ? "w-24 bg-gray-900 opacity-100"
+                          : "w-9 bg-gray-400 opacity-60"
+                      }`}
                     />
                   </button>
                 );
@@ -606,26 +539,16 @@ export default function Index() {
 
         <section
           aria-label={MODELS[modelIndex].name + " Specs"}
-          style={{
-            maxWidth: "900px",
-            width: "min(90vw, 900px)",
-            margin: "1.25rem auto 0",
-            padding: "4px 0",
-            color: "#374151",
-          }}
+          className="max-w-[900px] w-[min(90vw,900px)] mx-auto mt-5 py-1 text-gray-700"
         >
-          <div style={{ display: "flex", alignItems: "baseline", gap: "12px" }}>
-            <h2 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>
+          <div className="flex items-baseline gap-3">
+            <h2 className="text-2xl font-bold m-0">
               {MODELS[modelIndex].name}
             </h2>
-            <span style={{ color: "#6b7280" }}>
-              Iconic rear‑engine sports car
-            </span>
+            <span className="text-gray-500">Iconic rear‑engine sports car</span>
           </div>
           <div
-            style={{
-              marginTop: "12px",
-            }}
+            className="mt-3"
             aria-live="polite"
             aria-atomic="true"
             role="status"
@@ -641,46 +564,16 @@ export default function Index() {
               return (
                 <div
                   key={selectedSpecIndex}
-                  className="spec-container"
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "10px",
-                  }}
+                  className="spec-container flex flex-col gap-2.5"
                 >
                   {/* Left-extend line animation */}
-                  <div
-                    style={{
-                      height: "4px",
-                      width: "140px",
-                      backgroundColor: "#111827",
-                      borderRadius: "9999px",
-                      transition: "width 280ms ease",
-                    }}
-                    className="line-sweep"
-                  />
+                  <div className="line-sweep h-1 w-35 bg-gray-900 rounded-full transition-all duration-300 ease-in-out" />
                   {/* Spec content with subtle slide + fade */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "baseline",
-                      gap: "10px",
-                      color: "#374151",
-                      transform: "translateX(0)",
-                      opacity: 1,
-                      transition: "transform 260ms ease, opacity 240ms ease",
-                    }}
-                    className="spec-anim"
-                  >
-                    <div
-                      style={{ color: "#6b7280", fontSize: "0.85rem" }}
-                      className="spec-label"
-                    >
+                  <div className="spec-anim flex items-baseline gap-2.5 text-gray-700 translate-x-0 opacity-100 transition-all duration-300 ease-in-out">
+                    <div className="spec-label text-gray-500 text-[0.85rem]">
                       {spec.label}
                     </div>
-                    <div style={{ fontWeight: 600 }} className="spec-value">
-                      {spec.value}
-                    </div>
+                    <div className="spec-value font-semibold">{spec.value}</div>
                   </div>
                 </div>
               );
@@ -692,13 +585,7 @@ export default function Index() {
       {/* Minimalist Tabs (lines) */}
       <nav
         aria-label="View tabs"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "12px",
-          padding: "4px 0",
-        }}
+        className="flex items-center justify-center gap-3 py-1"
         tabIndex={0}
         onKeyDown={(e) => {
           const total = 5;
@@ -734,23 +621,14 @@ export default function Index() {
               aria-label={
                 ["Top", "Front", "Right side", "Back", "Left side"][i]
               }
-              style={{
-                background: "transparent",
-                border: "none",
-                padding: 0,
-                cursor: "pointer",
-              }}
+              className="bg-transparent border-none cursor-pointer py-2 px-1"
             >
               <div
-                style={{
-                  height: "4px",
-                  width: active ? "96px" : "36px",
-                  backgroundColor: active ? "#111827" : "#9ca3af",
-                  borderRadius: "9999px",
-                  opacity: active ? 1 : 0.6,
-                  transition: "all 220ms ease",
-                }}
-                className="line-transition"
+                className={`line-transition h-1 rounded-full transition-all duration-200 ease-in-out ${
+                  active
+                    ? "w-24 bg-gray-900 opacity-100"
+                    : "w-9 bg-gray-400 opacity-60"
+                }`}
               />
             </button>
           );
