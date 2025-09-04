@@ -92,15 +92,24 @@ declare module "three" {
     constructor(parameters?: { color?: number });
   }
 
+  export class Color {
+    constructor(color?: number | string);
+  }
+
+  export class MeshBasicMaterial extends Material {
+    constructor(parameters?: {
+      color?: Color | number | string;
+      side?: number;
+      transparent?: boolean;
+    });
+  }
+
+  export const DoubleSide: number;
+
   export class BoxGeometry {
     constructor(width?: number, height?: number, depth?: number);
     dispose(): void;
   }
-  export class PlaneGeometry {
-    constructor(width?: number, height?: number);
-    dispose(): void;
-  }
-
   export class PlaneGeometry {
     constructor(width?: number, height?: number);
     dispose(): void;
